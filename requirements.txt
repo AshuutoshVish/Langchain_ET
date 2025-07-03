@@ -1,0 +1,18 @@
+# For environment setup
+python-dotenv
+
+# langchain
+langchain
+langchain-core
+langchain-community
+
+# openAI Integratuion
+openai
+langchain-openai
+
+# Google gemini integration for Free 
+langchain-google-genai
+# google-generativeai
+
+# Groq integration for Free
+langchain langchain-groq
