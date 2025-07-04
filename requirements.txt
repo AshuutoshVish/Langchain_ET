@@ -12,7 +12,7 @@ langchain-openai
 
 # Google gemini integration for Free 
 langchain-google-genai
-# google-generativeai
+google-generativeai
 
 # Groq integration for Free
 langchain langchain-groq
