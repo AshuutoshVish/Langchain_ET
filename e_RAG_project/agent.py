@@ -1,0 +1,112 @@
+import os
+from dotenv import load_dotenv
+from langchain.chains import RetrievalQA
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_community.document_loaders import WebBaseLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+
+
+load_dotenv()
+
+def load_documents(urls: list):
+    print("Loading content from URLs...")
+    all_docs = []
+    for url in urls:
+        print(f"Loading from: {url}")
+        loader = WebBaseLoader([url])
+        docs = loader.load()
+        all_docs.extend(docs)
+    return all_docs
+
+
+def split_documents(docs):
+    print("Splitting documents into chunks...")
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    return splitter.split_documents(docs)
+
+
+def embed_documents(splits, persist_directory="agent_db", force_rebuild=False):
+    print("Checking for saved embeddings...")
+    embedding = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+
+    if not force_rebuild and os.path.exists(persist_directory) and os.listdir(persist_directory):
+        print("Loading existing embeddings from disk...")
+        vectorstore = Chroma(persist_directory=persist_directory, embedding_function=embedding)
+    else:
+        print("Creating and saving new embeddings...")
+        vectorstore = Chroma.from_documents(documents=splits, embedding=embedding, persist_directory=persist_directory)
+        vectorstore.persist()
+
+    return vectorstore
+
+
+def build_retrieval_chain(vectorstore):
+    print("Building RetrievalQA chain using Gemini...")
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0.5,
+        max_output_tokens=100
+    )
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        retriever=vectorstore.as_retriever(),
+        return_source_documents=True,
+        verbose=False
+    )
+    return qa_chain
+
+
+def run_chat_loop(qa_chain, vectorstore):
+    print("\nAsk questions about the websites (type 'exit' to quit):")
+    chat_history = []
+
+    while True:
+        user_input = input("\n🧑 You: ").strip()
+        if user_input.lower() in ["exit", "quit"]:
+            print("Exiting.....!!!!!")
+            break
+
+        relevant_docs = vectorstore.similarity_search(user_input, k=2)
+        if not relevant_docs:
+            print("🤖 AI: Sorry, no relevant info found on that topic.")
+            continue
+
+        try:
+            result = qa_chain.invoke({"query": user_input})
+            ai_response = result['result']
+            chat_history.append((user_input, ai_response))
+
+            print("\nChat History:")
+            for idx, (q, a) in enumerate(chat_history, 1):
+                print(f"\n🧑 Q{idx}: {q}\n🤖 A{idx}: {a}")
+
+        except Exception as e:
+            print("⚠️ Error:", e)
+
+
+def main():
+    load_dotenv()
+    os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
+
+    urls = [
+        "https://github.com/AshuutoshVish/",
+        # "https://excellencetechnologies.in/",
+        # "https://excellencetechnologies.in/about/",
+        # "https://excellencetechnologies.in/services/web-app/",
+        # "https://excellencetechnologies.in/jobs/",
+        # "https://excellencetechnologies.in/contact-us/",
+    ]
+
+    persist_dir = "agent_db"
+    force_rebuild = False # Set to True to force rebuild embeddings
+
+    docs = load_documents(urls)
+    splits = split_documents(docs)
+    vectorstore = embed_documents(splits, persist_directory=persist_dir, force_rebuild=force_rebuild)
+    qa_chain = build_retrieval_chain(vectorstore)
+    run_chat_loop(qa_chain, vectorstore)
+
+
+if __name__ == "__main__":
+    main()
