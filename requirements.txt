@@ -16,3 +16,9 @@ google-generativeai
 
 # Groq integration for Free
 langchain langchain-groq
+
+# Vector store and embeddings
+chromadb
+
+# Text splitting and processing
+tiktoken
